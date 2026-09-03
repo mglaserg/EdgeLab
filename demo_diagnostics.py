@@ -27,4 +27,4 @@ eq = equity_curve(vt.net_returns)
 p5,p50,p95 = null_band(vt.net_returns)
 print("terminal: strategy %.3f | null p95 %.3f | inside band? %s"
       % (eq[-1], p95[-1], eq[-1] < p95[-1]))
-np.save('/tmp/eq.npy', np.vstack([eq,p5,p50,p95]))
+np.save('data/demo_eq.npy', np.vstack([eq,p5,p50,p95]))
