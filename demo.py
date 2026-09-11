@@ -12,11 +12,12 @@ from edgelab import CrisisState, EconomicPrior, PriorTier, Registry, evaluate
 from edgelab.registry import UnregisteredHypothesis
 
 from pathlib import Path
-import tempfile
+from tempfile import TemporaryDirectory
 
 rng = np.random.default_rng(7)
-db_path = Path(tempfile.gettempdir()) / "demo_edgelab.db"
-reg = Registry("data/demo_edgelab.db")
+_tmp = TemporaryDirectory()
+_demo_db = Path(_tmp.name) / "demo_edgelab.db"
+reg = Registry(_demo_db)
 
 # -- guard rail: no result without pre-registration ------------------------
 try:
@@ -93,7 +94,8 @@ reg.close()
 # C. the same mined winner, scored against the FULL sweep
 # =========================================================================
 from edgelab import redeflate
-reg2 = Registry("data/demo_edgelab.db")
+reg2 = Registry(_demo_db)
 print("\nC. RE-DEFLATED AGAINST THE COMPLETE SEARCH")
 print(redeflate(reg2, best).summary())
 reg2.close()
+_tmp.cleanup()

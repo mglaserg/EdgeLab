@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edgelab"
-version = "0.1.0"
-description = "Pre-registered edge discovery: mechanism first, deflated inference second."
+version = "0.2.0"
+description = "Pre-registered edge validation with a simple study workflow."
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [tool.setuptools.packages.find]
 include = ["edgelab*"]
+
+[project.scripts]
+edgelab = "edgelab.cli:main"

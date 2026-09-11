@@ -93,6 +93,9 @@ class Registry:
     """SQLite-backed. One file per research program."""
 
     def __init__(self, path: str | Path = "edgelab.db") -> None:
+        path = Path(path)
+        if path.parent != Path("."):
+            path.parent.mkdir(parents=True, exist_ok=True)
         self.path = str(path)
         self._conn = sqlite3.connect(self.path)
         self._conn.row_factory = sqlite3.Row

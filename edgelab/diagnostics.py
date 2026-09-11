@@ -174,20 +174,47 @@ def decay_profile(
     returns: np.ndarray,
     horizons: tuple[int, ...] = (1, 2, 3, 5, 8, 13, 21),
 ) -> dict[int, float]:
-    """Rank IC of the signal against forward returns at several horizons.
+    """Rank IC against cumulative returns over the next ``h`` periods.
 
-    Real signals decay smoothly -- information about tomorrow implies some
-    information about the day after. An IC that is large at exactly one horizon
-    and near zero either side is almost always an artifact of the construction,
-    not an edge with a time constant.
+    ``signal[t]`` is aligned with ``returns[t+1:t+1+h]``.  This explicit
+    convention matters: an earlier implementation accidentally shifted
+    horizons above one an extra period into the future.
+
+    Real signals often decay smoothly -- information about tomorrow may imply
+    some information about the day after. An IC that is large at exactly one
+    horizon and near zero either side deserves suspicion.
     """
     s, r = np.asarray(signal, float), np.asarray(returns, float)
+    if len(s) != len(r):
+        raise ValueError(f"length mismatch: signal {len(s)}, returns {len(r)}")
+
+    n = len(r)
+    values = np.nan_to_num(r, nan=0.0)
+    csum = np.concatenate(([0.0], np.cumsum(values)))
+    missing = np.concatenate(([0], np.cumsum(~np.isfinite(r))))
+
     out: dict[int, float] = {}
     for h in horizons:
-        fwd = np.convolve(r, np.ones(h), mode="full")[h - 1:][: len(r)]
-        a, b = s[:-h], fwd[h:]
-        ok = np.isfinite(a) & np.isfinite(b)
-        out[h] = float(stats.spearmanr(a[ok], b[ok]).statistic) if ok.sum() > 20 else np.nan
+        if h < 1:
+            raise ValueError(f"horizons must be positive integers, got {h}")
+        if n <= h:
+            out[h] = np.nan
+            continue
+
+        # For t=0..n-h-1, sum r[t+1] through r[t+h].
+        starts = np.arange(1, n - h + 1)
+        ends = starts + h
+        fwd = csum[ends] - csum[starts]
+        bad = (missing[ends] - missing[starts]) > 0
+        fwd = fwd.astype(float, copy=False)
+        fwd[bad] = np.nan
+
+        a = s[: n - h]
+        ok = np.isfinite(a) & np.isfinite(fwd)
+        out[h] = (
+            float(stats.spearmanr(a[ok], fwd[ok]).statistic)
+            if ok.sum() > 20 else np.nan
+        )
     return out
 
 

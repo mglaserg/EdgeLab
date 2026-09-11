@@ -1,14 +1,13 @@
-"""edgelab -- pre-registered edge discovery.
+"""edgelab -- pre-registered edge validation.
 
-The spine, not the search. Adapters, panel and features plug in around this.
+The spine, not the search.  The easiest path is now::
 
-Three layers, used in this order:
+    s = edgelab.study(...)
+    d = s.diagnose(signal, returns)
+    ev = s.test(net_pnl)
 
-    mechanism    write the counterparty story BEFORE looking at PnL;
-                 falsifiers decide the tier you actually earn
-    diagnostics  leak-safe vol targeting, response shape, decay, costs
-    registry +   pre-register the hypothesis, count every trial, deflate
-    evaluate     the Sharpe against the search you really performed
+The lower-level mechanism, diagnostics, registry and evaluation APIs remain
+available when you need full control.
 """
 
 from .diagnostics import (
@@ -26,8 +25,9 @@ from .mechanism import (
 )
 from .priors import CrisisState, EconomicPrior, PriorTier
 from .registry import Hypothesis, Registry, UnregisteredHypothesis
+from .study import Study, StudyDiagnostics, study, unlabeled_prior
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "CrisisState", "EconomicPrior", "PriorTier",
@@ -42,4 +42,5 @@ __all__ = [
     "breakeven_cost", "decay_profile", "decompose_drift", "equity_curve",
     "ewm_vol", "null_band", "signal_regression", "signal_response",
     "vol_target",
+    "Study", "StudyDiagnostics", "study", "unlabeled_prior",
 ]

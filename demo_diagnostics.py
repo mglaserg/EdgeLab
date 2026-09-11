@@ -24,7 +24,8 @@ for name, s in [("REAL (IC~0.06)", sig), ("NOISE", noise_sig)]:
 
 vt = vol_target(sig, ret, cost_per_turnover=0.0002)
 eq = equity_curve(vt.net_returns)
-p5,p50,p95 = null_band(vt.net_returns)
+p5,p50,p95 = null_band(vt.net_returns, n_paths=5000)
 print("terminal: strategy %.3f | null p95 %.3f | inside band? %s"
       % (eq[-1], p95[-1], eq[-1] < p95[-1]))
+pathlib.Path('data').mkdir(exist_ok=True)
 np.save('data/demo_eq.npy', np.vstack([eq,p5,p50,p95]))
