@@ -144,6 +144,7 @@ class Evaluation:
     dsr: float
 
     warnings: list[str] = field(default_factory=list)
+    trial_id: str = ""
 
     @property
     def survives(self) -> bool:
@@ -296,7 +297,7 @@ def evaluate(
     if window.lower().startswith("is") or "in-sample" in window.lower():
         warnings.append("In-sample window. This is a diagnostic, not evidence.")
 
-    registry.log_trial(
+    trial_id = registry.log_trial(
         hypothesis_id=hypothesis_id,
         variant=variant,
         sharpe=sr,
@@ -325,4 +326,5 @@ def evaluate(
         sharpe_hurdle=hurdle,
         dsr=dsr,
         warnings=warnings,
+        trial_id=trial_id,
     )

@@ -75,5 +75,112 @@ class StudyTests(unittest.TestCase):
                 reg.close()
 
 
+    def test_evidence_export_is_conductor_compatible_and_fail_closed_on_window(self):
+        from edgelab.evidence import EvidenceRecord
+        from edgelab.evaluate import Evaluation
+        from edgelab.priors import CrisisState, EconomicPrior
+        from edgelab.registry import Hypothesis
+
+        hyp = Hypothesis(
+            id="hyp123",
+            family="family",
+            name="candidate",
+            prior=EconomicPrior(
+                tier=PriorTier.CONSTRAINT,
+                counterparty=(
+                    "Mandated funds rebalance mechanically at a known calendar boundary."
+                ),
+                persistence=(
+                    "The mandate creates recurring price-insensitive flow that cannot simply opt out."
+                ),
+                crisis_state=CrisisState.IDIOSYNCRATIC,
+                falsifier=(
+                    "The return effect disappears on the preregistered event calendar out of sample."
+                ),
+            ),
+            estimand="mean daily net PnL",
+            universe="synthetic assets",
+            feature_spec="candidate@v1",
+            is_end="2024-12-31",
+            oos_start="2025-01-01",
+            registered_at="2025-01-01T00:00:00+00:00",
+        )
+        ev = Evaluation(
+            hypothesis_id=hyp.id,
+            family=hyp.family,
+            variant="baseline",
+            window="oos",
+            tier=hyp.prior.tier,
+            n_obs=250,
+            mean_pnl=0.001,
+            sharpe_per_obs=0.1,
+            sharpe_annualised=1.58,
+            skew=0.0,
+            excess_kurtosis=0.0,
+            mean_ci=(0.0002, 0.0018),
+            sharpe_ci=(0.3, 2.2),
+            block_length=6.0,
+            raw_trials=2,
+            effective_trials=3.0,
+            sharpe_hurdle=0.02,
+            dsr=0.99,
+            trial_id="trial123",
+        )
+        record = EvidenceRecord.from_evaluation(hyp, ev)
+        self.assertEqual(record.decision, "pass")
+        self.assertTrue(record.eligible_for_promotion)
+        self.assertEqual(record.evaluation["trial_id"], "trial123")
+        self.assertEqual(
+            record.conductor_reference("artifacts/evidence.json"),
+            {
+                "producer": "edgelab",
+                "artifact_type": "validation",
+                "location": "artifacts/evidence.json",
+                "version": "0.3.0",
+            },
+        )
+
+        diagnostic = Evaluation(**{**ev.__dict__, "window": "training"})
+        diagnostic_record = EvidenceRecord.from_evaluation(hyp, diagnostic)
+        self.assertEqual(diagnostic_record.decision, "diagnostic")
+        self.assertFalse(diagnostic_record.eligible_for_promotion)
+
+    def test_study_evidence_redeflates_against_final_family_trial_count(self):
+        rng = np.random.default_rng(7)
+        pnl_a = rng.normal(0.001, 0.01, size=180)
+        pnl_b = rng.normal(0.001, 0.01, size=180)
+
+        with TemporaryDirectory() as tmp:
+            with edgelab.study(
+                name="evidence test",
+                idea="A candidate edge earns positive net returns out of sample.",
+                universe="synthetic daily asset",
+                target="mean daily net PnL",
+                is_end="2024-12-31",
+                oos_start="2025-01-01",
+                db=Path(tmp) / "edgelab.db",
+            ) as s:
+                first = s.test(pnl_a, variant="a", n_boot=50, seed=1)
+                second = s.test(pnl_b, variant="b", n_boot=50, seed=2)
+                self.assertTrue(first.trial_id)
+                self.assertTrue(second.trial_id)
+                self.assertEqual(first.raw_trials, 1)
+                self.assertEqual(second.raw_trials, 2)
+
+                out = Path(tmp) / "artifacts" / "validation.json"
+                record = s.write_evidence(first, out)
+                self.assertTrue(out.exists())
+                self.assertEqual(record.evaluation["raw_trials"], 2)
+                self.assertIn(
+                    "Re-deflated against the full family history",
+                    " ".join(record.evaluation["warnings"]),
+                )
+
+                import json
+                payload = json.loads(out.read_text())
+                self.assertEqual(payload["evidence_id"], record.evidence_id)
+                self.assertEqual(payload["schema_version"], "edgelab.validation.v1")
+
+
 if __name__ == "__main__":
     unittest.main()

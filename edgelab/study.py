@@ -30,6 +30,7 @@ from .diagnostics import (
     vol_target,
 )
 from .evaluate import Evaluation, evaluate, redeflate
+from .evidence import EvidenceRecord
 from .mechanism import Mechanism
 from .priors import CrisisState, EconomicPrior, PriorTier
 from .registry import Hypothesis, Registry
@@ -280,6 +281,32 @@ class Study:
     def redeflate(self, evaluation: Evaluation) -> Evaluation:
         """Score an earlier winner against the family's complete trial history."""
         return redeflate(self.registry, evaluation)
+
+    def evidence(self, evaluation: Evaluation) -> EvidenceRecord:
+        """Freeze a promotion-grade validation artifact for this study.
+
+        If more variants were tested after ``evaluation`` ran, EdgeLab first
+        re-deflates it against the family's complete trial history.  Exported
+        evidence therefore cannot accidentally preserve an optimistic
+        multiplicity count from the middle of a sweep.
+        """
+        if evaluation.hypothesis_id != self.id:
+            raise ValueError(
+                f"evaluation belongs to {evaluation.hypothesis_id!r}, not study {self.id!r}"
+            )
+        final = evaluation
+        current_trials = self.registry.trial_count(self.family)
+        if current_trials > evaluation.raw_trials:
+            final = self.redeflate(evaluation)
+        return EvidenceRecord.from_evaluation(self.hypothesis, final)
+
+    def write_evidence(
+        self, evaluation: Evaluation, path: str | Path
+    ) -> EvidenceRecord:
+        """Write validation evidence for Conductor/other orchestrators."""
+        record = self.evidence(evaluation)
+        record.write(path)
+        return record
 
     def with_mechanism(
         self,

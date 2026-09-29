@@ -129,6 +129,33 @@ research logic.
 | `diagnostics.py` | leak-safe vol targeting, binscatter response, decay, breakeven cost, null band, drift decomposition |
 | `cli.py` | guided `edgelab new` and `edgelab show` commands |
 
+## Export validation evidence
+
+EdgeLab owns validation; Conductor owns promotion.  After the decisive test,
+freeze the result as a portable JSON artifact instead of copying a Sharpe ratio
+by hand:
+
+```python
+ev = s.test(net_pnl, variant="baseline", window="oos")
+record = s.write_evidence(ev, "artifacts/vixsnap-validation.json")
+
+print(record.evidence_id)
+print(record.conductor_reference("artifacts/vixsnap-validation.json"))
+```
+
+The artifact contains the preregistered hypothesis, trial id, OOS result,
+confidence intervals, DSR, raw/effective trial counts, warnings, and a strict
+`eligible_for_promotion` flag.  Export is deliberately fail-closed: only an
+explicit OOS/holdout/validation window can be promotion-eligible.  If more
+variants were tested after the selected candidate ran, `Study.write_evidence`
+automatically re-deflates it against the family's complete trial history before
+writing the artifact.
+
+`conductor_reference(...)` returns the exact `producer`, `artifact_type`,
+`location`, and `version` fields consumed by Conductor's evidence metadata.
+The JSON itself stays independent of Conductor so EdgeLab remains usable as a
+standalone referee.
+
 ## Advanced workflow
 
 The original lower-level API remains supported:
