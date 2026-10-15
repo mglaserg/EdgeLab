@@ -125,6 +125,8 @@ class StudyTests(unittest.TestCase):
             sharpe_hurdle=0.02,
             dsr=0.99,
             trial_id="trial123",
+            holdout_verified=True,
+            holdout_start="2025-01-01",
         )
         record = EvidenceRecord.from_evaluation(hyp, ev)
         self.assertEqual(record.decision, "pass")

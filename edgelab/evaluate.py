@@ -145,6 +145,8 @@ class Evaluation:
 
     warnings: list[str] = field(default_factory=list)
     trial_id: str = ""
+    holdout_verified: bool = False
+    holdout_start: str = ""
 
     @property
     def survives(self) -> bool:
@@ -168,6 +170,7 @@ class Evaluation:
             f"  hurdle Sharpe   {self.sharpe_hurdle:.4f} per obs"
             f"  (realised {self.sharpe_per_obs:.4f})",
             f"  DSR             {self.dsr:.3f}   --> {verdict}",
+            f"  holdout dates   {'verified' if self.holdout_verified else 'NOT VERIFIED'}",
         ]
         for w in self.warnings:
             lines.append(f"  ! {w}")
@@ -193,7 +196,7 @@ def redeflate(registry: Registry, ev: Evaluation) -> Evaluation:
     sr_var = (float(np.var(history, ddof=1)) if len(history) >= 5
               else 1.0 / (ev.n_obs - 1))
     dsr, hurdle = deflated_sharpe(
-        ev.sharpe_per_obs, ev.n_obs, ev.skew, ev.excess_kurtosis,
+        ev.sharpe_per_obs, ev.n_obs, ev.skew, ev.excess_kurtosis + 3.0,
         effective, sr_var,
     )
     notes = list(ev.warnings) + [
@@ -221,6 +224,7 @@ def evaluate(
     n_boot: int = 5000,
     alpha: float = 0.05,
     seed: int | None = None,
+    observation_times: np.ndarray | None = None,
 ) -> Evaluation:
     """Evaluate a net-of-cost PnL series against a pre-registered hypothesis.
 
@@ -228,13 +232,46 @@ def evaluate(
     gross PnL is the most common way a backtest survives that should not.
     """
     hyp = registry.get(hypothesis_id)          # raises if unregistered
-    x = np.asarray(pnl, dtype=float)
-    x = x[np.isfinite(x)]
+    raw = np.asarray(pnl, dtype=float)
+    finite = np.isfinite(raw)
+    x = raw[finite]
     n = len(x)
     if n < 20:
         raise ValueError(f"Need at least 20 observations, got {n}.")
 
     warnings: list[str] = []
+
+    holdout_names = {
+        "oos", "out-of-sample", "out_of_sample", "holdout",
+        "sealed-holdout", "sealed_holdout", "validation",
+    }
+    claimed_holdout = window.strip().lower().replace(" ", "-") in holdout_names
+    holdout_verified = False
+    if observation_times is not None:
+        raw_times = np.asarray(observation_times)
+        if len(raw_times) != len(raw):
+            raise ValueError(
+                f"observation_times length mismatch: {len(raw_times)} vs pnl {len(raw)}"
+            )
+        try:
+            times = raw_times.astype("datetime64[ns]")[finite]
+        except (TypeError, ValueError) as exc:
+            raise ValueError("observation_times must be datetime-like") from exc
+        if np.isnat(times).any():
+            raise ValueError("observation_times contains missing timestamps for finite PnL")
+        start = np.datetime64(hyp.oos_start, "ns")
+        if claimed_holdout and np.any(times < start):
+            earliest = str(times.min())
+            raise ValueError(
+                f"holdout contains observations before preregistered oos_start "
+                f"{hyp.oos_start}: earliest={earliest}"
+            )
+        holdout_verified = bool(claimed_holdout and len(times) == n and np.all(times >= start))
+    elif claimed_holdout:
+        warnings.append(
+            "Holdout label is unverified because observation_times were not supplied; "
+            "evidence export is not promotion-eligible."
+        )
 
     mu = float(x.mean())
     sd = float(x.std(ddof=1))
@@ -276,7 +313,9 @@ def evaluate(
             "asymptotic Sharpe variance, which is usually optimistic."
         )
 
-    dsr, hurdle = deflated_sharpe(sr, n, skew, exkurt, effective_trials, sr_var)
+    # The DSR denominator uses ordinary (Pearson) kurtosis. scipy.kurtosis()
+    # returns excess kurtosis by default, so add three before applying DSR.
+    dsr, hurdle = deflated_sharpe(sr, n, skew, exkurt + 3.0, effective_trials, sr_var)
 
     if hyp.prior.tier is PriorTier.UNLABELED:
         warnings.append(
@@ -327,4 +366,6 @@ def evaluate(
         dsr=dsr,
         warnings=warnings,
         trial_id=trial_id,
+        holdout_verified=holdout_verified,
+        holdout_start=hyp.oos_start if holdout_verified else "",
     )

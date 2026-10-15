@@ -264,6 +264,7 @@ class Study:
         n_boot: int = 5000,
         alpha: float = 0.05,
         seed: int | None = None,
+        observation_times: np.ndarray | None = None,
     ) -> Evaluation:
         """Evaluate net-of-cost PnL and automatically log the trial."""
         return evaluate(
@@ -276,6 +277,7 @@ class Study:
             n_boot=n_boot,
             alpha=alpha,
             seed=seed,
+            observation_times=observation_times,
         )
 
     def redeflate(self, evaluation: Evaluation) -> Evaluation:

@@ -22,7 +22,7 @@ import json
 import sqlite3
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .priors import CrisisState, EconomicPrior, PriorTier
@@ -118,7 +118,12 @@ class Registry:
         notes: str = "",
     ) -> Hypothesis:
         """Write a hypothesis before you have seen a result for it."""
-        if oos_start <= is_end:
+        try:
+            parsed_is_end = date.fromisoformat(is_end)
+            parsed_oos_start = date.fromisoformat(oos_start)
+        except ValueError as exc:
+            raise ValueError("is_end and oos_start must be ISO dates (YYYY-MM-DD)") from exc
+        if parsed_oos_start <= parsed_is_end:
             raise ValueError(
                 f"oos_start ({oos_start}) must be strictly after is_end "
                 f"({is_end}). Overlapping windows are not an out-of-sample test."

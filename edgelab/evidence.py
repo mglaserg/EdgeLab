@@ -80,7 +80,7 @@ class EvidenceRecord:
             )
 
         explicit_oos = _normalise_window(evaluation.window) in _OOS_WINDOWS
-        eligible = bool(explicit_oos and evaluation.survives)
+        eligible = bool(explicit_oos and evaluation.holdout_verified and evaluation.survives)
         decision = "pass" if eligible else ("fail" if explicit_oos else "diagnostic")
 
         hypothesis_payload = {
@@ -118,6 +118,8 @@ class EvidenceRecord:
             "sharpe_hurdle": evaluation.sharpe_hurdle,
             "dsr": evaluation.dsr,
             "survives": evaluation.survives,
+            "holdout_verified": evaluation.holdout_verified,
+            "holdout_start": evaluation.holdout_start or None,
             "warnings": list(evaluation.warnings),
         }
 
